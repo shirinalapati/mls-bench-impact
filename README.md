@@ -30,7 +30,11 @@ Substitute minutes are sparse, confounded, and usually ranked by goals/assists a
 
 ![Bench Impact Rankings](assets/screenshots/rankings.png)
 
-Local app: `http://localhost:8501` after `make app` or `./scripts/run_production.sh`.  
+Local app: `http://localhost:8501` after `make app` or `./scripts/run_production.sh`.
+
+Repository: https://github.com/shirinalapati/mls-bench-impact  
+
+Cloud deploy: connect that repo on [Streamlit Community Cloud](https://share.streamlit.io) with entrypoint `streamlit_app.py` (packaged DB at `data/release/mls_bench_impact.db`).  
 
 ---
 

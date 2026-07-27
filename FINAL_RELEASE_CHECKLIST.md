@@ -15,9 +15,11 @@
 - [x] Tests + CI config  
 - [x] Documentation set  
 - [x] End-to-end pipeline executed on 2025–2026 data (793 matches, 6,759 substitute appearances, 351 ranked players)  
-- [x] App serving locally via Streamlit (`streamlit run src/mls_bench_impact/app/streamlit_app.py`, port 8501)  
+- [x] App serving locally via Streamlit (`http://localhost:8501`)  
 - [x] Validation reports + Excel/CSV/PDF exports generated  
-- [ ] Public cloud URL (push repo + Streamlit Community Cloud / equivalent)  
-- [ ] Screenshots committed under `assets/screenshots/`  
+- [x] GitHub repository published: https://github.com/shirinalapati/mls-bench-impact  
+- [x] Packaged production DB committed at `data/release/mls_bench_impact.db`  
+- [x] Screenshots committed under `assets/screenshots/`  
+- [ ] Streamlit Community Cloud public URL (one-click connect of the GitHub repo with entrypoint `streamlit_app.py`)  
 
-Local production deployment is complete. Public cloud hosting requires a remote GitHub repository connection.
+Local production deployment and GitHub publication are complete.
