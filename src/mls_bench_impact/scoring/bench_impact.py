@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import numpy as np
 import pandas as pd
@@ -13,7 +12,6 @@ from mls_bench_impact.models.shrinkage import apply_shrinkage, percentile_within
 from mls_bench_impact.models.team_impact import effects_to_percentiles, fit_team_impact_model
 from mls_bench_impact.scoring.confidence import classify_player, data_confidence, model_uncertainty
 from mls_bench_impact.scoring.substitute_advantage import compute_substitute_advantage
-
 
 PERIOD_FILTERS = {
     "2025": lambda s: s == "2025",
@@ -41,13 +39,6 @@ def _attach_strength(conn, apps: pd.DataFrame) -> pd.DataFrame:
     if apps.empty:
         return apps
     # team strength from ASA team xg expanding means approx: use average post-entry change baseline 0
-    team_xg = pd.read_sql_query(
-        """
-        SELECT m.match_id, m.home_team_id, m.away_team_id, m.match_date
-        FROM matches m
-        """,
-        conn,
-    )
     # simple strength: mean goal diff of team in period prior not available easily; use 0 filled with match xg if present
     apps = apps.copy()
     apps["team_strength"] = apps["team_strength"].fillna(0)
@@ -268,7 +259,7 @@ def compute_period_scores(conn, period: str = "2025-2026") -> pd.DataFrame:
     out["evaluation_period"] = period
     out["model_version"] = MODEL_VERSION
     out["data_version"] = f"asa+fotmob-{settings.data_cutoff_date}"
-    out["calculation_timestamp"] = datetime.now(timezone.utc).isoformat()
+    out["calculation_timestamp"] = datetime.now(UTC).isoformat()
     out["source_cutoff_dates"] = settings.data_cutoff_date
     return out
 

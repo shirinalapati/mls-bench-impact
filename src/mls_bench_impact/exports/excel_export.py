@@ -10,7 +10,6 @@ from mls_bench_impact import MODEL_VERSION
 from mls_bench_impact.config.constants import METRIC_DICTIONARY_SEED
 from mls_bench_impact.config.settings import settings
 
-
 SHEETS = [
     "Executive Summary",
     "Overall Bench Rankings",

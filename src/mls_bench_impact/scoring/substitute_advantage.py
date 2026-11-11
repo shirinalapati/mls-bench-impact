@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 
 from mls_bench_impact.config.settings import settings
-from mls_bench_impact.models.shrinkage import apply_shrinkage, shrink_rate
+from mls_bench_impact.models.shrinkage import shrink_rate
 
 
 def compute_substitute_advantage(

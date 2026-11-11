@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import numpy as np
-import pandas as pd
 
 from mls_bench_impact.config.settings import settings
 
@@ -56,7 +55,6 @@ def classify_player(row: dict) -> tuple[str, list[str]]:
     bis = row.get("bench_impact_score")
     ssi = row.get("substitute_sporting_impact")
     ati = row.get("adjusted_team_impact_after_entry")
-    pif = row.get("positive_impact_frequency")
     pif_pct = row.get("positive_impact_frequency_percentile")
     conf = row.get("data_confidence")
     apps = row.get("substitute_appearances") or 0

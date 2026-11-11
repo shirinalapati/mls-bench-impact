@@ -1,0 +1,130 @@
+name: Daily MLS Bench Impact refresh
+
+# Quoted "on" avoids YAML 1.1 treating `on` as boolean true (breaks some parsers).
+"on":
+  schedule:
+    # 13:45 UTC ≈ 05:45 America/Los_Angeles, after overnight results reach ASA/FotMob
+    - cron: "45 13 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-bench-impact-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    name: Rebuild bench impact database
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      PYTHONPATH: src
+      # Build into a scratch DB; the committed release DB is replaced only after checks pass.
+      MBI_DB_PATH: data/processed/mls_bench_impact.db
+    steps:
+      - name: Check MLS season window
+        id: season
+        run: |
+          TODAY=$(date -u +%F)
+          END=2026-12-20
+          echo "today=$TODAY"
+          if [[ "$TODAY" > "$END" ]]; then
+            echo "Past MLS 2026 season window ($END). Skipping."
+            echo "active=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "active=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v5
+        if: steps.season.outputs.active == 'true'
+
+      - uses: actions/setup-python@v6
+        if: steps.season.outputs.active == 'true'
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install
+        if: steps.season.outputs.active == 'true'
+        run: |
+          python -m pip install -r requirements.txt
+          python -m pip install -e .
+
+      # Finished-match payloads don't change, so keep them between runs and only fetch
+      # new matches. Fixtures and ASA data are not cached and refresh on every run.
+      - name: Restore FotMob match cache
+        if: steps.season.outputs.active == 'true'
+        uses: actions/cache@v4
+        with:
+          path: data/raw/fotmob/matches
+          key: fotmob-matches-${{ github.run_id }}
+          restore-keys: fotmob-matches-
+
+      - name: Rebuild from ASA + FotMob
+        if: steps.season.outputs.active == 'true'
+        run: |
+          rm -f "$MBI_DB_PATH"
+          python -m mls_bench_impact.pipeline
+          python -c "from mls_bench_impact.validation.run_validation import run_validation; print(run_validation())"
+
+      - name: Sanity-check and stage release DB
+        id: check
+        if: steps.season.outputs.active == 'true'
+        run: |
+          python - <<'PY'
+          import os
+          import sqlite3
+
+          new_path = os.environ["MBI_DB_PATH"]
+          old_path = "data/release/mls_bench_impact.db"
+
+          def fingerprint(path):
+              with sqlite3.connect(path) as c:
+                  return {
+                      "finished_matches": c.execute("SELECT COUNT(*), MAX(match_date) FROM matches WHERE status='FullTime'").fetchone(),
+                      "sub_appearances": c.execute("SELECT COUNT(*) FROM substitute_appearances").fetchone()[0],
+                      "asa_metrics": c.execute("SELECT COUNT(*) FROM player_match_metrics WHERE source='asa'").fetchone()[0],
+                      "ranked_2026": c.execute("SELECT COUNT(*) FROM player_bench_scores WHERE evaluation_period='2026' AND overall_rank IS NOT NULL").fetchone()[0],
+                      "bis_sum": c.execute("SELECT ROUND(SUM(bench_impact_score), 4) FROM player_bench_scores WHERE evaluation_period='2025-2026'").fetchone()[0],
+                  }
+
+          new, old = fingerprint(new_path), fingerprint(old_path)
+          print("old:", old)
+          print("new:", new)
+          # Guard against a partial scrape replacing good data.
+          assert new["ranked_2026"] > 0, "no ranked 2026 players"
+          assert new["sub_appearances"] >= 0.95 * old["sub_appearances"], "substitute appearances dropped sharply"
+          assert new["finished_matches"][0] >= old["finished_matches"][0], "fewer finished matches than release"
+
+          changed = new != old
+          with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
+              fh.write(f"changed={'true' if changed else 'false'}\n")
+          if changed:
+              # Fold the WAL into the main file and compact it before it is committed.
+              c = sqlite3.connect(new_path)
+              c.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+              c.execute("VACUUM")
+              c.close()
+          PY
+
+      - name: Commit refreshed release DB
+        if: steps.season.outputs.active == 'true' && steps.check.outputs.changed == 'true'
+        run: |
+          cp "$MBI_DB_PATH" data/release/mls_bench_impact.db
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/release/mls_bench_impact.db
+          git commit -m "chore: daily bench impact data refresh"
+          for attempt in 1 2 3 4 5; do
+            if git push origin HEAD:master; then
+              echo "Push succeeded on attempt $attempt"
+              exit 0
+            fi
+            echo "Push attempt $attempt failed; retrying..."
+            sleep $((attempt * 15))
+            git pull --rebase origin master || true
+          done
+          echo "Push failed after retries"
+          exit 1

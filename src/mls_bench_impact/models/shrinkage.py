@@ -30,7 +30,7 @@ def position_context_priors(
             prior = float(g[value_col].mean())
         else:
             prior = float(np.average(g[value_col], weights=w))
-        rec = dict(zip(group_cols, keys))
+        rec = dict(zip(group_cols, keys, strict=False))
         rec["prior"] = prior
         rec["n"] = len(g)
         rows.append(rec)

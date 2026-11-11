@@ -5,7 +5,12 @@ from collections import defaultdict
 from typing import Any
 
 from mls_bench_impact.config.constants import POSITION_GROUPS
-from mls_bench_impact.ingest.fotmob import extract_stat, fetch_match_payload, finished_match_ids
+from mls_bench_impact.ingest.fotmob import (
+    extract_stat,
+    fetch_league_fixtures,
+    fetch_match_payload,
+    finished_match_ids,
+)
 from mls_bench_impact.transform.identity import (
     bridge_matches,
     bridge_players,
@@ -21,7 +26,6 @@ from mls_bench_impact.utils.time_utils import (
     score_state_simple,
     tactical_situation,
 )
-
 
 # FotMob usualPlayingPositionId is a coarse role code (observed):
 # 0=GK, 1=Defender, 2=Midfielder, 3=Attacker
@@ -64,15 +68,6 @@ def _pos_group_from_codes(position_id: int | None, usual: int | None, asa_pos: s
 def ingest_fotmob_match_shells(conn, seasons: tuple[str, ...] = ("2025", "2026"), force: bool = False) -> int:
     """Create FotMob match rows (later bridged to ASA)."""
     n = 0
-    for season in seasons:
-        for mid in finished_match_ids(season, force=force):
-            # lightweight: store from fixtures file
-            from mls_bench_impact.ingest.fotmob import fetch_league_fixtures
-
-            break
-    # better: iterate fixtures directly
-    from mls_bench_impact.ingest.fotmob import fetch_league_fixtures
-
     for season in seasons:
         for m in fetch_league_fixtures(season, force=force):
             st = m.get("status") or {}
@@ -224,7 +219,6 @@ def _window_xg(shots: list[dict], team_fm_id: int | str, start: float, end: floa
 
 
 def build_from_match_payload(conn, fotmob_match_id: str, payload: dict[str, Any]) -> dict[str, int]:
-    general = payload.get("general") or {}
     content = payload.get("content") or {}
     lineup = content.get("lineup") or {}
     facts = content.get("matchFacts") or {}
@@ -241,8 +235,6 @@ def build_from_match_payload(conn, fotmob_match_id: str, payload: dict[str, Any]
         return {"skipped": 1}
 
     expanded = float(match["expanded_minutes"] or 96)
-    home_team_fm = (general.get("homeTeam") or {}).get("id") or (lineup.get("homeTeam") or {}).get("id")
-    away_team_fm = (general.get("awayTeam") or {}).get("id") or (lineup.get("awayTeam") or {}).get("id")
 
     # clear prior derived rows for this match
     for table in (

@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import sqlite3
+from contextlib import closing
+from datetime import date
 from pathlib import Path
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -45,7 +49,33 @@ class Settings(BaseSettings):
     fotmob_delay_s: float = 0.15
     allow_synthetic: bool = False
 
-    data_cutoff_date: str = "2026-07-26"
+    # Empty -> date of the last successful pipeline run recorded in the DB (what the
+    # app shows), else today. The pipeline stamps each run with today's date unless
+    # MBI_DATA_CUTOFF_DATE is set explicitly.
+    data_cutoff_date: str = ""
+
+    @model_validator(mode="after")
+    def _resolve_cutoff(self) -> Settings:
+        if not self.data_cutoff_date:
+            self.data_cutoff_date = _last_run_cutoff(self.db_path) or date.today().isoformat()
+        return self
+
+
+def _last_run_cutoff(db_path: Path) -> str | None:
+    if not db_path.exists():
+        return None
+    try:
+        with closing(sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)) as conn:
+            row = conn.execute(
+                """
+                SELECT data_cutoff_date FROM pipeline_runs
+                WHERE status = 'ok' AND data_cutoff_date IS NOT NULL
+                ORDER BY finished_at DESC LIMIT 1
+                """
+            ).fetchone()
+    except sqlite3.Error:
+        return None
+    return row[0] if row else None
 
 
 settings = Settings()

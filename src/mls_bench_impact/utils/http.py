@@ -8,7 +8,6 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 
 from mls_bench_impact.config.settings import settings
 
-
 SESSION = requests.Session()
 SESSION.headers.update(
     {

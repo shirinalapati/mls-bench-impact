@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-import json
 from typing import Any
 
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import Ridge
 from sklearn.preprocessing import StandardScaler
-
 
 CONTEXT_COLS = [
     "entry_minute",
@@ -111,6 +109,6 @@ def effects_to_percentiles(effects: dict[str, float], position_map: dict[str, st
     out = {}
     for _, g in df.groupby("position_group"):
         ranks = g["effect"].rank(pct=True, method="average") * 100
-        for pid, val in zip(g["player_id"], ranks):
+        for pid, val in zip(g["player_id"], ranks, strict=False):
             out[pid] = float(val)
     return out

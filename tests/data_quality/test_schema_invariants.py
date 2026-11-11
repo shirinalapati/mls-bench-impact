@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from mls_bench_impact.db.database import init_db
 from mls_bench_impact.config.settings import settings
+from mls_bench_impact.db.database import init_db
 
 
 @pytest.fixture(scope="module")
@@ -32,7 +32,7 @@ def test_schema_has_core_tables(db_path):
 
 def test_no_synthetic_insert(db_path):
     conn = sqlite3.connect(db_path)
-    with pytest.raises(Exception):
+    with pytest.raises(sqlite3.IntegrityError):
         conn.execute(
             "INSERT INTO players(player_id, player_name, normalized_name, is_synthetic) VALUES ('x','Demo','demo',1)"
         )

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import csv
-from pathlib import Path
 
 from rapidfuzz import fuzz, process
 
@@ -85,17 +84,30 @@ def bridge_matches(conn) -> int:
         if not a:
             # try swapped? no
             continue
+        # fotmob_match_id and asa_game_id are UNIQUE, so the FotMob-only shell cannot
+        # coexist with the ASA row once linked (this crashed incremental refreshes when
+        # FotMob listed a result before ASA did). Fold the shell into the ASA row: drop
+        # it and its derived rows, which build_all_intervals rebuilds under the ASA
+        # match_id from the cached FotMob payload.
+        for table in _match_child_tables(conn):
+            conn.execute(f"DELETE FROM {table} WHERE match_id=?", (f["match_id"],))
+        conn.execute("DELETE FROM matches WHERE match_id=?", (f["match_id"],))
         conn.execute(
             "UPDATE matches SET fotmob_match_id=? WHERE match_id=?",
             (f["fotmob_match_id"], a["match_id"]),
         )
-        # mark fm match as superseded by deleting? keep both but we'll use ASA match_id as canonical
-        conn.execute(
-            "UPDATE matches SET asa_game_id=? WHERE match_id=?",
-            (a["asa_game_id"], f["match_id"]),
-        )
         linked += 1
     return linked
+
+
+def _match_child_tables(conn) -> list[str]:
+    rows = conn.execute(
+        """
+        SELECT m.name FROM sqlite_master m, pragma_table_info(m.name) p
+        WHERE m.type = 'table' AND p.name = 'match_id' AND m.name != 'matches'
+        """
+    ).fetchall()
+    return [r[0] for r in rows]
 
 
 # fix type hint without importing sqlite3 Row name incorrectly

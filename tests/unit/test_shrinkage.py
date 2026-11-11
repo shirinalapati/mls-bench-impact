@@ -1,5 +1,5 @@
-from mls_bench_impact.models.shrinkage import reliability_weight, shrink_rate
 from mls_bench_impact.models.positive_frequency import beta_binomial_adjust
+from mls_bench_impact.models.shrinkage import reliability_weight, shrink_rate
 from mls_bench_impact.scoring.bench_impact import PERIOD_FILTERS
 from mls_bench_impact.scoring.confidence import classify_player, data_confidence
 from mls_bench_impact.utils.time_utils import entry_timing_category, score_state_detailed, score_state_simple

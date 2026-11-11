@@ -1,5 +1,4 @@
 import numpy as np
-import pandas as pd
 
 from mls_bench_impact.config.settings import settings
 

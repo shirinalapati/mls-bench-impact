@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
-from pathlib import Path
+from datetime import UTC, datetime
 
 import numpy as np
 import pandas as pd
@@ -27,7 +26,7 @@ def _record(conn, test_name: str, component: str, metric_name: str, value: float
             value,
             1 if passed else 0,
             json.dumps(details),
-            datetime.now(timezone.utc).isoformat(),
+            datetime.now(UTC).isoformat(),
         ),
     )
 
@@ -58,7 +57,6 @@ def run_validation(period: str = "2025-2026") -> dict:
             _record(conn, "split_half_reliability", "SSI", "pearson", corr if corr == corr else -1, bool(corr == corr and corr > 0.1), {"n": int(half.dropna().shape[0])})
 
         # year-to-year if both seasons present
-        s25 = scores[scores["evaluation_period"] == period]  # placeholder
         y25 = pd.read_sql_query("SELECT player_id, bench_impact_score FROM player_bench_scores WHERE evaluation_period='2025'", conn)
         y26 = pd.read_sql_query("SELECT player_id, bench_impact_score FROM player_bench_scores WHERE evaluation_period='2026'", conn)
         yy = y25.merge(y26, on="player_id", suffixes=("_25", "_26")).dropna()

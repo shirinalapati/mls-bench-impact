@@ -1,21 +1,21 @@
 from __future__ import annotations
 
 import json
+import os
 import traceback
 import uuid
-from datetime import datetime, timezone
-from pathlib import Path
+from datetime import UTC, date, datetime
 
 from mls_bench_impact import MODEL_VERSION
 from mls_bench_impact.config.settings import settings
-from mls_bench_impact.db.database import init_db, db_session
+from mls_bench_impact.db.database import db_session, init_db
 from mls_bench_impact.ingest import asa
 from mls_bench_impact.scoring.bench_impact import compute_period_scores, persist_scores
 from mls_bench_impact.transform.intervals import build_all_intervals
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def run_pipeline(
@@ -24,6 +24,8 @@ def run_pipeline(
     skip_fotmob: bool = False,
 ) -> dict:
     seasons = seasons or settings.seasons
+    if not os.environ.get("MBI_DATA_CUTOFF_DATE"):
+        settings.data_cutoff_date = date.today().isoformat()
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     settings.processed_dir.mkdir(parents=True, exist_ok=True)
     settings.exports_dir.mkdir(parents=True, exist_ok=True)
