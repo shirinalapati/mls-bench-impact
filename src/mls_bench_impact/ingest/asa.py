@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import calendar
 import json
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -41,22 +43,59 @@ def fetch_games(season: str, force: bool = False) -> list[dict]:
     )
 
 
+# The ASA API silently truncates any response at this many rows.
+ASA_ROW_LIMIT = 10_000
+
+
+def _month_windows(first: date, last: date) -> list[tuple[str, str]]:
+    windows = []
+    y, m = first.year, first.month
+    while (y, m) <= (last.year, last.month):
+        end = date(y, m, calendar.monthrange(y, m)[1])
+        windows.append((date(y, m, 1).isoformat(), end.isoformat()))
+        y, m = (y + 1, 1) if m == 12 else (y, m + 1)
+    return windows
+
+
+def _fetch_player_games(cache_name: str, endpoint: str, season: str, force: bool = False) -> list[dict]:
+    """Player-by-game rows for one season.
+
+    A single season-wide request is capped at ASA_ROW_LIMIT rows, which dropped about a
+    third of player-games (a full season is ~15k rows). Query month by month instead and
+    keep only that season's games.
+    """
+    cache = _cache_path(cache_name)
+    if cache.exists() and not force:
+        return json.loads(cache.read_text(encoding="utf-8"))
+    games = fetch_games(season, force=force)
+    season_games = {g["game_id"] for g in games}
+    days = sorted(date.fromisoformat(g["date_time_utc"][:10]) for g in games)
+    if not days:
+        return []
+    # Pad a day each side: ASA may filter on local rather than UTC dates.
+    windows = _month_windows(days[0] - timedelta(days=1), days[-1] + timedelta(days=1))
+    rows: dict[tuple[str, str], dict] = {}
+    for start, end in windows:
+        chunk = get_json(
+            f"{settings.asa_base_url}/mls/players/{endpoint}",
+            params={"split_by_games": "true", "minimum_minutes": 1, "start_date": start, "end_date": end},
+        )
+        if len(chunk) >= ASA_ROW_LIMIT:
+            raise RuntimeError(f"ASA {endpoint} {start}..{end} hit the {ASA_ROW_LIMIT}-row cap; use smaller windows")
+        for r in chunk:
+            if r["game_id"] in season_games:
+                rows[(r["player_id"], r["game_id"])] = r
+    data = list(rows.values())
+    cache.write_text(json.dumps(data), encoding="utf-8")
+    return data
+
+
 def fetch_player_xgoals_by_game(season: str, force: bool = False) -> list[dict]:
-    return _load_or_fetch(
-        f"player_xgoals_games_{season}.json",
-        f"{settings.asa_base_url}/mls/players/xgoals",
-        params={"season_name": season, "split_by_games": "true", "minimum_minutes": 1},
-        force=force,
-    )
+    return _fetch_player_games(f"player_xgoals_games_{season}.json", "xgoals", season, force=force)
 
 
 def fetch_player_goals_added_by_game(season: str, force: bool = False) -> list[dict]:
-    return _load_or_fetch(
-        f"player_gplus_games_{season}.json",
-        f"{settings.asa_base_url}/mls/players/goals-added",
-        params={"season_name": season, "split_by_games": "true", "minimum_minutes": 1},
-        force=force,
-    )
+    return _fetch_player_games(f"player_gplus_games_{season}.json", "goals-added", season, force=force)
 
 
 def fetch_team_xgoals_by_game(season: str, force: bool = False) -> list[dict]:
